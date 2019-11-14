@@ -1,0 +1,18 @@
+Max_Brush_Distance: 75
+
+Brushes:
+  Brush_Of_Trees:
+    Material: "STICK"
+    Ignore_Air: true
+    X: 0
+    Y: -1
+    Z: 0
+    # Set to -1 for Random
+    Rotate_X: -1
+    Rotate_Y: 0
+    Rotate_Z: 0
+    # You don't need to add the .schem afterwards. I do it in the code
+    Schematics:
+      - Schematic1
+      - Schematic2
+      - Schematic3
