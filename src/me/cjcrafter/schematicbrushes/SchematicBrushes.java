@@ -21,7 +21,7 @@ public class SchematicBrushes extends JavaPlugin implements Listener {
         }
         new API(this);
         API.add(getConfig());
-        API.forEach("Brushes", (key, value) -> API.brushes.put(key.split("\\.")[1], new Brush(key)));
+        API.forEach((key, value) -> API.brushes.put(key.split("\\.")[1], new Brush(key)));
 
         getServer().getPluginManager().registerEvents(this, this);
     }
@@ -64,6 +64,7 @@ public class SchematicBrushes extends JavaPlugin implements Listener {
     @EventHandler
     public void onPaint(PlayerInteractEvent e) {
         if (!e.getPlayer().hasPermission("schematicbrushes.use")) return;
+        if (e.getPlayer().getInventory().getItemInMainHand().getItemMeta() == null) return;
         if (e.getPlayer().getInventory().getItemInMainHand().getItemMeta().getDisplayName().split("~").length != 2) return;
         if (API.getBrush(e.getPlayer().getInventory().getItemInMainHand().getItemMeta().getDisplayName().split("~")[1]) == null) return;
 

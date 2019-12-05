@@ -56,11 +56,10 @@ class Brush {
     }
 
     private AffineTransform getRotation() {
-        AffineTransform rotation = new AffineTransform();
-        rotation = rotation.rotateX(((int) API.getDouble("Brushes." + name + ".Rotate_X") == -1) ? rand.nextInt(4) * 90: API.getDouble("Brushes." + name + ".Rotate_X"));
-        rotation = rotation.rotateY(((int) API.getDouble("Brushes." + name + ".Rotate_Y") == -1) ? rand.nextInt(4) * 90: API.getDouble("Brushes." + name + ".Rotate_Y"));
-        rotation = rotation.rotateZ(((int) API.getDouble("Brushes." + name + ".Rotate_Z") == -1) ? rand.nextInt(4) * 90: API.getDouble("Brushes." + name + ".Rotate_Z"));
-        return rotation;
+        return new AffineTransform()
+                .rotateX(((int) API.getDouble("Brushes." + name + ".Rotate_X") == -1) ? rand.nextInt(4) * 90: API.getDouble("Brushes." + name + ".Rotate_X"))
+                .rotateY(((int) API.getDouble("Brushes." + name + ".Rotate_Y") == -1) ? rand.nextInt(4) * 90: API.getDouble("Brushes." + name + ".Rotate_Y"))
+                .rotateZ(((int) API.getDouble("Brushes." + name + ".Rotate_Z") == -1) ? rand.nextInt(4) * 90: API.getDouble("Brushes." + name + ".Rotate_Z"));
     }
 
     ItemStack getItem() {

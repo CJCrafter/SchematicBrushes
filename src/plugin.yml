@@ -1,6 +1,6 @@
 main: me.cjcrafter.schematicbrushes.SchematicBrushes
 author: CJCrafter
-version: 1.0.0
+version: 1.0.1
 api-version: "1.14"
 name: SchematicBrushes
 depend:

@@ -56,10 +56,10 @@ class API {
         return new ArrayList<>();
     }
 
-    static void forEach(String path, BiConsumer<String, Object> consumer) {
-        int count = countDots(path);
+    static void forEach(BiConsumer<String, Object> consumer) {
+        int count = countDots("Brushes");
         config.forEach((key, value) -> {
-            if (count + 1 == countDots(key) && key.contains(path))
+            if (count + 1 == countDots(key) && key.contains("Brushes"))
                 consumer.accept(key, value);
         });
     }
@@ -98,7 +98,7 @@ class API {
     }
     
     static void displayHelp(CommandSender sender) {
-        sender.sendMessage(color("&6 = SchematicBrushes = "));
+        sender.sendMessage(color("&6SchematicBrushes, By: CJCrafter"));
         sender.sendMessage(color("&a/sb get <Schematic_Name>"));
         sender.sendMessage(color("&a/sb give <Player> <Schematic_Name>"));
         sender.sendMessage(color("&a/sb list"));
