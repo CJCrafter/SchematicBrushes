@@ -6,98 +6,53 @@ import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.configuration.file.FileConfiguration;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
-class API {
+public class API {
 
-    static Map<String, Brush> brushes = new HashMap<>();
-    static Map<String, Object> config = new HashMap<>();
+    public static Map<String, Brush> brushes = new HashMap<>();
     private static SchematicBrushes main;
-    
+
     API(SchematicBrushes main) {
         API.main = main;
     }
 
-    static String getString(String path) {
-        if (config.get(path) != null) {
-            return (String) config.get(path);
-        }
-        return "";
+    public static String getString(String path) {
+        return main.config.getString(path);
     }
 
-    static boolean getBool(String path) {
-        if (config.get(path) != null)  {
-            return (boolean) config.get(path);
-        }
-        return false;
+    public static boolean getBool(String path) {
+        return main.config.getBoolean(path);
     }
 
-    static double getDouble(String path) {
-        if (config.get(path) != null) {
-            return (double) config.get(path);
-        }
-        return 0.0;
+    public static double getDouble(String path) {
+        return main.config.getNumber(path).doubleValue();
     }
 
-    @SuppressWarnings("unchecked")
-    static List<String> getList(String path) {
-        if (config.get(path) != null) {
-            return (List<String>) config.get(path);
-        }
-        return new ArrayList<>();
+    public static int getInt(String path) {
+        return main.config.getNumber(path).intValue();
     }
 
-    static void forEach(BiConsumer<String, Object> consumer) {
-        int count = countDots("Brushes");
-        config.forEach((key, value) -> {
-            if (count + 1 == countDots(key) && key.contains("Brushes"))
-                consumer.accept(key, value);
-        });
+    public static List<String> getList(String path) {
+        return main.config.getList(path);
+
     }
 
-    private static int countDots(String string) {
-        return (int) string.chars().filter(c -> c == '.').count();
-    }
-
-    static void add(FileConfiguration file) {
-        for (String key : file.getKeys(true)) {
-            Object obj = file.get(key);
-
-            if (obj instanceof Number)
-                config.put(key, ((Number) obj).doubleValue());
-            else if (obj instanceof String)
-                config.put(key, color(obj.toString()));
-            else if (obj instanceof Boolean || "true".equals(obj) || "false".equals(obj))
-                config.put(key, Boolean.valueOf(obj.toString()));
-            else if (obj instanceof List<?>)
-                config.put(key, convertList(obj));
-            else
-                config.put(key, null);
-        }
-    }
-    
-    private static List<String> convertList(Object object) {
-        List<String> strings = new ArrayList<>();
-        for (Object obj: (List<?>) object) {
-            strings.add(color(obj.toString()));
-        }
-        return strings;
-    }
-    
-    static String color(String string) {
+    public static String color(String string) {
         return ChatColor.translateAlternateColorCodes('&', string);
     }
-    
-    static void displayHelp(CommandSender sender) {
+
+    public static SchematicBrushes getInstance() {
+        return main;
+    }
+
+    public static void displayHelp(CommandSender sender) {
         sender.sendMessage(color("&6SchematicBrushes, By: CJCrafter"));
         sender.sendMessage(color("&a/sb get <Schematic_Name>"));
         sender.sendMessage(color("&a/sb give <Player> <Schematic_Name>"));
@@ -105,8 +60,8 @@ class API {
         sender.sendMessage(color("&a/sb reload"));
     }
 
-    static Brush getBrush(String name) {
-        return brushes.get(name);
+    public static Brush getBrush(String name) {
+        return brushes.get(ChatColor.stripColor(name));
     }
 
     static Clipboard getSchematic(String name) {

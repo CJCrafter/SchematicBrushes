@@ -1,18 +1,102 @@
+# The maximum distance that a brush can paste a schematic at
+#
+# There should be no need to change this
 Max_Brush_Distance: 75
+
+# The maximum number of times the scatter brush algorithm can try to find
+# a location. If this is exceeded, the player is warned on different ways
+# the brush can be fixed in configuration.
+#
+# Although this won't throw any errors, this should be treated as one.
+# This can cause lag if it is set too high.
+#
+# If your scatter brushes are "small", then you shouldn't need to change this
+Scatter_Max_Checks: 1000
+
+# Different Levels for debugging
+#   0. No debugging/printing at all
+#   1. Errors, and help (Recommended)
+#   2. Warning
+#   3. Excessive detail
+Debug_Level: 1
 
 Brushes:
   Brush_Of_Trees:
+    # The item the brush is when  you use the command
+    # to give yourself the brush
+    #
+    # This doesn't really matter, it's for customization.
     Material: "STICK"
+
+    # Whether or not to paste the air blocks inside of
+    # the schematic. This is the same as using //paste -a
     Ignore_Air: true
+
+    # The different offsets to paste the schematic at.
+    # Y offset is very useful for putting schematics underground:
+    #   Ex. Trees with roots
+    #   Ex. Buildings with basements
+    #   Ex. Underground caves/ponds
     X: 0
     Y: -1
     Z: 0
-    # Set to -1 for Random
+
+    # The rotation of separate axis to rotate the schematics
+    # Rotation should be in multiplies of 90 (0, 90, 180, 270, 360, etc)
+    # For random rotation, use -1
     Rotate_X: -1
     Rotate_Y: 0
     Rotate_Z: 0
-    # You don't need to add the .schem afterwards. I do it in the code
+
+    # The different schematics that the brush should paint.
+    # Do NOT added ".schem" afterwards!
+    #
+    # Pasted schematics are chosen randomly.
     Schematics:
       - Schematic1
       - Schematic2
       - Schematic3
+
+    # Adds scatter mechanics to the brush
+    # Note that the offsets (X, Y, Z) defined above are used AFTER this algorithm finds
+    # a location, so the offsets can still be used correctly.
+    Scatter:
+
+      # Whether or not to use Scatter brush
+      Enabled: true
+
+      # The number of schematics that are allowed to be pasted
+      # Using min and max allows for ranges, like 3-8.
+      Min_Schematics: 10
+      Max_Schematics: 10
+
+      # The minimum number of blocks between schematics.
+      Space_Between_Schematics: 5.53
+
+      # The maximum distance that schematics can be pasted from the origin, or the block you click on
+      # It's important that this number is high enough that the maximum number of schematics is
+      # can "fit" (based on the space between schematics).
+      Range: 35.87
+
+      Ground:
+
+        # Whether or not to "lock" schematics to the ground.
+        # This is helpful to paste blocks correctly on the ground if the Y cord
+        # changes (Ex. Mountain/Tree/Cave)
+        Lock: true
+
+        # Specify here any blocks that the plugin should NOT count as ground
+        # Be careful to not make this list too long.
+        Ignore_Blocks:
+          - AIR
+          - WATER
+          - GRASS
+          - FERN
+          - CAVE_AIR
+
+        # How high up or down should this algorithm check for ground?
+        # If this is set too high, it may find the ground to be a platform above you.
+        # Too low, and the brush won't work properly.
+        #
+        # Higher numbers should be used for terrain like steep mountains.
+        Bound: 20

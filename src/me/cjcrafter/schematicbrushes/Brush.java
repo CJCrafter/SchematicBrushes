@@ -10,8 +10,10 @@ import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.transform.AffineTransform;
 import com.sk89q.worldedit.session.ClipboardHolder;
+import me.cjcrafter.schematicbrushes.util.LogLevel;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -21,7 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 
-class Brush {
+public class Brush {
 
     private static final Random rand = new Random();
 
@@ -35,10 +37,70 @@ class Brush {
         API.getList("Brushes." + this.name + ".Schematics").forEach(str -> schematics.add(API.getSchematic(str)));
     }
 
-    void paste(Player player, Location loc) {
-        Clipboard toPaste = schematics.get(rand.nextInt(schematics.size()));
+    public void paste(Player player, Location loc) {
+        if (!API.getBool("Brushes." + name + ".Scatter.Enabled")) {
+            paste(schematics.get(rand.nextInt(schematics.size())), player, loc);
+            return;
+        }
+
+        int min = API.getInt("Brushes." + name + ".Scatter.Min_Schematics");
+        int max = API.getInt("Brushes." + name + ".Scatter.Max_Schematics");
+        int total = (max - min <= 0) ? max : rand.nextInt(1 + max - min) + min;
+        player.sendMessage("Going to paste " + total + "schematics");
+
+        double range = API.getDouble("Brushes." + name + ".Scatter.Range");
+
+        List<Location> locations = new ArrayList<>();
+        int i = 0;
+        while (locations.size() < total && i++ < API.getInt("Scatter_Max_Checks")) {
+            double x = rand.nextDouble() * range + loc.getX() - range / 2;
+            double y = loc.getY();
+            double z = rand.nextDouble() * range + loc.getZ() - range / 2;
+            Location currentLocation = new Location(loc.getWorld(), x, y, z);
+
+            // Any conditions checking if a Location is a "valid random location"
+            // should go here
+            if (locations
+                    .stream()
+                    .anyMatch(iterator -> iterator.distance(currentLocation) < API.getDouble("Brushes." + name + ".Scatter.Space_Between_Schematics")))
+                continue;
+
+            if (API.getBool("Brushes." + name + ".Scatter.Ground.Lock")) {
+                getGround(currentLocation);
+            }
+            locations.add(currentLocation);
+        }
+
+        locations.forEach(location -> paste(schematics.get(rand.nextInt(schematics.size())), player, location));
+    }
+
+    private void getGround(Location loc) {
+        API.getInstance().log(LogLevel.DEBUG, "&eAttempting to find ground at " + loc);
+        int bound = API.getInt("Brushes." + name + ".Scatter.Ground.Bound");
+        int lower = Math.max(loc.getBlockY() - bound, 0);
+        int upper = Math.min(loc.getBlockY() + bound, 255);
+
+        for (int y = upper; y > lower; y--) {
+            Block block = loc.getWorld().getBlockAt(loc.getBlockX(), y, loc.getBlockZ());
+            API.getInstance().log(LogLevel.DEBUG, "Checking " + block.getLocation(), null);
+            if (API.getList("Brushes." + name + ".Scatter.Ground.Ignore_Blocks")
+                    .stream()
+                    .anyMatch(s -> s.equals(block.getType().name()))
+            ) {
+                API.getInstance().log(LogLevel.DEBUG, "y" + y + " is " + block.getType().name() + "...Blocked..." + upper + ">" + lower);
+                continue;
+            }
+
+            API.getInstance().log(LogLevel.DEBUG, "&aBreaking at y= " + y + "(" + block.getType().name() + ")", null);
+            loc.setY(y);
+            break;
+        }
+    }
+
+    private void paste(Clipboard schematic, Player player, Location loc) {
+        player.sendMessage(API.color("&aPasting at: (" + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + ")"));
         try (EditSession editSession = WorldEdit.getInstance().getEditSessionFactory().getEditSession(new BukkitWorld(loc.getWorld()), -1)) {
-            ClipboardHolder holder = new ClipboardHolder(toPaste);
+            ClipboardHolder holder = new ClipboardHolder(schematic);
             holder.setTransform(getRotation());
             Operation operation = holder
                     .createPaste(editSession)
@@ -51,7 +113,10 @@ class Brush {
             Operations.complete(operation);
             WorldEdit.getInstance().getSessionManager().findByName(player.getName()).remember(editSession);
         } catch (WorldEditException e) {
-            System.err.println("There was an error pasting schematic \"" + toPaste.toString() + "\"");
+            API.getInstance().log(LogLevel.ERROR, "Schematic \"" + schematic + "\" failed to load", e);
+        } catch (NullPointerException e) {
+            API.getInstance().log(LogLevel.WARN, "Player \"" + player.getName() +
+                    "\" has left the server while painting.", e);
         }
     }
 
@@ -62,11 +127,19 @@ class Brush {
                 .rotateZ(((int) API.getDouble("Brushes." + name + ".Rotate_Z") == -1) ? rand.nextInt(4) * 90: API.getDouble("Brushes." + name + ".Rotate_Z"));
     }
 
-    ItemStack getItem() {
+    public ItemStack getItem() {
         ItemStack item = new ItemStack(Objects.requireNonNull(Material.getMaterial(API.getString("Brushes." + name + ".Material"))));
         ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName("SchematicBrushes~" + name);
+        meta.setDisplayName(API.color("&aSchematicBrushes~" + name));
         item.setItemMeta(meta);
         return item;
+    }
+
+    @Override
+    public String toString() {
+        return "Brush[" +
+                "name=" + name +
+                ",schematics=" + schematics +
+                "]";
     }
 }
