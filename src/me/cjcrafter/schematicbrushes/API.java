@@ -65,7 +65,8 @@ public class API {
     }
 
     static Clipboard getSchematic(String name) {
-        File file = new File(main.getServer().getPluginManager().getPlugin("WorldEdit").getDataFolder(), "schematics" + File.separator + name + ".schem");
+        if (!name.contains(".schem")) name += ".schem";
+        File file = new File(main.getServer().getPluginManager().getPlugin("WorldEdit").getDataFolder(), "schematics" + File.separator + name);
         ClipboardFormat format = ClipboardFormats.findByFile(file);
         try (ClipboardReader reader = format.getReader(new FileInputStream(file))) {
             return reader.read();

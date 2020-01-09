@@ -1,3 +1,5 @@
+# FOR MORE HELP, PLEASE SEE https://github.com/CJCrafter/SchematicBrushes/wiki
+
 # The maximum distance that a brush can paste a schematic at
 #
 # There should be no need to change this
@@ -12,6 +14,9 @@ Max_Brush_Distance: 75
 #
 # If your scatter brushes are "small", then you shouldn't need to change this
 Scatter_Max_Checks: 1000
+
+# The max build height. There should be no need to change this
+Build_Height: 255
 
 # Different Levels for debugging
 #   0. No debugging/printing at all
@@ -48,9 +53,8 @@ Brushes:
     Rotate_Y: 0
     Rotate_Z: 0
 
-    # The different schematics that the brush should paint.
-    # Do NOT added ".schem" afterwards!
-    #
+    # You may add .schem afterwards if you would like. If your file ends
+    # in .schematic, you MUST put .schematic afterwards.
     # Pasted schematics are chosen randomly.
     Schematics:
       - Schematic1
@@ -78,6 +82,16 @@ Brushes:
       # can "fit" (based on the space between schematics).
       Range: 35.87
 
+      # If the randomly found location's block is on this list (with whitelist false), then the location is scrapped
+      # and it tries to find a new spot
+      #
+      # If the randomly found location's block is NOT on this list (with whitelist true), then the location is scrapped
+      # and it tries to find a new spot
+      Block_Whitelist: true
+      Valid_Blocks:
+        - GRASS_BLOCK
+        - DIRT
+
       Ground:
 
         # Whether or not to "lock" schematics to the ground.
@@ -89,7 +103,6 @@ Brushes:
         # Be careful to not make this list too long.
         Ignore_Blocks:
           - AIR
-          - WATER
           - GRASS
           - FERN
           - CAVE_AIR
@@ -100,3 +113,29 @@ Brushes:
         #
         # Higher numbers should be used for terrain like steep mountains.
         Bound: 20
+  Example_Brush:
+    Material: "STICK"
+    Ignore_Air: true
+    X: 0
+    Y: -1
+    Z: 0
+    Rotate_X: 0
+    Rotate_Y: 0
+    Rotate_Z: 0
+    Schematics:
+      - Schematic1
+    Scatter:
+      Enabled: false
+      Min_Schematics: 0
+      Max_Schematics: 0
+      Space_Between_Schematics: 0
+      Range: 0
+      Block_Whitelist: false
+      Valid_Blocks:
+        - LAVA
+      Ground:
+        Lock: false
+        Ignore_Blocks:
+          - AIR
+        Bound: 0
+# FOR MORE HELP, PLEASE SEE https://github.com/CJCrafter/SchematicBrushes/wiki

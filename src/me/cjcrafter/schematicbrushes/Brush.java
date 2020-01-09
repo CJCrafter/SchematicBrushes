@@ -37,6 +37,11 @@ public class Brush {
         API.getList("Brushes." + this.name + ".Schematics").forEach(str -> schematics.add(API.getSchematic(str)));
     }
 
+    /**
+     *
+     * @param player
+     * @param loc
+     */
     public void paste(Player player, Location loc) {
         if (!API.getBool("Brushes." + name + ".Scatter.Enabled")) {
             paste(schematics.get(rand.nextInt(schematics.size())), player, loc);
@@ -46,7 +51,7 @@ public class Brush {
         int min = API.getInt("Brushes." + name + ".Scatter.Min_Schematics");
         int max = API.getInt("Brushes." + name + ".Scatter.Max_Schematics");
         int total = (max - min <= 0) ? max : rand.nextInt(1 + max - min) + min;
-        player.sendMessage("Going to paste " + total + "schematics");
+        player.sendMessage(API.color("&aPasting " + total + " schematics."));
 
         double range = API.getDouble("Brushes." + name + ".Scatter.Range");
 
@@ -54,51 +59,53 @@ public class Brush {
         int i = 0;
         while (locations.size() < total && i++ < API.getInt("Scatter_Max_Checks")) {
             double x = rand.nextDouble() * range + loc.getX() - range / 2;
-            double y = loc.getY();
             double z = rand.nextDouble() * range + loc.getZ() - range / 2;
-            Location currentLocation = new Location(loc.getWorld(), x, y, z);
+            Location currentLocation = new Location(loc.getWorld(), x, loc.getY(), z);
 
             // Any conditions checking if a Location is a "valid random location"
             // should go here
-            if (locations
-                    .stream()
+            if (locations.stream()
                     .anyMatch(iterator -> iterator.distance(currentLocation) < API.getDouble("Brushes." + name + ".Scatter.Space_Between_Schematics")))
                 continue;
 
-            if (API.getBool("Brushes." + name + ".Scatter.Ground.Lock")) {
-                getGround(currentLocation);
+            if (API.getBool("Brushes." + name + ".Scatter.Ground.Lock")) getGround(currentLocation);
+
+            boolean isOnList = API.getList("Brushes." + name + ".Scatter.Valid_Blocks")
+                    .contains(currentLocation.getBlock().getType().name());
+            if (isOnList != API.getBool("Brushes." + name + ".Scatter.Block_Whitelist")) {
+                continue;
             }
+
             locations.add(currentLocation);
         }
 
         locations.forEach(location -> paste(schematics.get(rand.nextInt(schematics.size())), player, location));
     }
 
+    /**
+     * Gets the highest possible ground level within <Code>bound</Code>
+     * @param loc The location for the x,z values, and to set the y
+     */
     private void getGround(Location loc) {
         API.getInstance().log(LogLevel.DEBUG, "&eAttempting to find ground at " + loc);
         int bound = API.getInt("Brushes." + name + ".Scatter.Ground.Bound");
         int lower = Math.max(loc.getBlockY() - bound, 0);
-        int upper = Math.min(loc.getBlockY() + bound, 255);
+        int upper = Math.min(loc.getBlockY() + bound, API.getInt("Build_Height"));
 
         for (int y = upper; y > lower; y--) {
-            Block block = loc.getWorld().getBlockAt(loc.getBlockX(), y, loc.getBlockZ());
-            API.getInstance().log(LogLevel.DEBUG, "Checking " + block.getLocation(), null);
-            if (API.getList("Brushes." + name + ".Scatter.Ground.Ignore_Blocks")
-                    .stream()
-                    .anyMatch(s -> s.equals(block.getType().name()))
-            ) {
+            loc.setY(y);
+            Block block = loc.getBlock();
+            if (API.getList("Brushes." + name + ".Scatter.Ground.Ignore_Blocks").contains(block.getType().name())) {
                 API.getInstance().log(LogLevel.DEBUG, "y" + y + " is " + block.getType().name() + "...Blocked..." + upper + ">" + lower);
                 continue;
             }
 
             API.getInstance().log(LogLevel.DEBUG, "&aBreaking at y= " + y + "(" + block.getType().name() + ")", null);
-            loc.setY(y);
             break;
         }
     }
 
     private void paste(Clipboard schematic, Player player, Location loc) {
-        player.sendMessage(API.color("&aPasting at: (" + loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ() + ")"));
         try (EditSession editSession = WorldEdit.getInstance().getEditSessionFactory().getEditSession(new BukkitWorld(loc.getWorld()), -1)) {
             ClipboardHolder holder = new ClipboardHolder(schematic);
             holder.setTransform(getRotation());
@@ -120,13 +127,26 @@ public class Brush {
         }
     }
 
+    /**
+     * Gets a rotation for this brush based on configuration
+     * Remember that -1 is a random number
+     * @return A rotation for a ClipboardHolder
+     */
     private AffineTransform getRotation() {
+        double x = API.getDouble("Brushes." + name + ".Rotate_X");
+        double y = API.getDouble("Brushes." + name + ".Rotate_Y");
+        double z = API.getDouble("Brushes." + name + ".Rotate_Z");
+
         return new AffineTransform()
-                .rotateX(((int) API.getDouble("Brushes." + name + ".Rotate_X") == -1) ? rand.nextInt(4) * 90: API.getDouble("Brushes." + name + ".Rotate_X"))
-                .rotateY(((int) API.getDouble("Brushes." + name + ".Rotate_Y") == -1) ? rand.nextInt(4) * 90: API.getDouble("Brushes." + name + ".Rotate_Y"))
-                .rotateZ(((int) API.getDouble("Brushes." + name + ".Rotate_Z") == -1) ? rand.nextInt(4) * 90: API.getDouble("Brushes." + name + ".Rotate_Z"));
+                .rotateX(((int) x == -1) ? rand.nextInt(4) * 90 : x)
+                .rotateY(((int) y == -1) ? rand.nextInt(4) * 90 : y)
+                .rotateZ(((int) z == -1) ? rand.nextInt(4) * 90 : z);
     }
 
+    /**
+     * Returns the brush item (When using /sb give, or /sb get)
+     * @return The brush item
+     */
     public ItemStack getItem() {
         ItemStack item = new ItemStack(Objects.requireNonNull(Material.getMaterial(API.getString("Brushes." + name + ".Material"))));
         ItemMeta meta = item.getItemMeta();

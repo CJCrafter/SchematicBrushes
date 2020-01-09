@@ -1,12 +1,9 @@
 package me.cjcrafter.schematicbrushes;
 
 import me.cjcrafter.schematicbrushes.commands.CommandHandler;
+import me.cjcrafter.schematicbrushes.commands.TabCompleter;
 import me.cjcrafter.schematicbrushes.util.Config;
 import me.cjcrafter.schematicbrushes.util.LogLevel;
-import org.bukkit.Bukkit;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -14,12 +11,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 
 public class SchematicBrushes extends JavaPlugin implements Listener {
 
@@ -40,30 +33,13 @@ public class SchematicBrushes extends JavaPlugin implements Listener {
 
         getServer().getPluginManager().registerEvents(this, this);
         Objects.requireNonNull(getCommand("schematicbrushes")).setExecutor(new CommandHandler(this));
+        Objects.requireNonNull(getCommand("schematicbrushes")).setTabCompleter(new TabCompleter());
     }
 
     @Override
     public void onDisable() {
         config.clear();
         API.brushes.clear();
-    }
-
-    @Override
-    public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        sender.sendMessage("args=" + Arrays.toString(args));
-        if (args[0].equals("give")) {
-            if (args.length < 2) return Bukkit.getOnlinePlayers().stream().map(Player::getName).collect(Collectors.toList());
-            else if (args.length < 3) return new ArrayList<>(API.brushes.keySet());
-        }
-        else if (args[0].equals("get")) {
-            if (args.length < 2) return new ArrayList<>(API.brushes.keySet());
-        }
-        else return getList("reload", "get", "give", "list");
-        return getList("");
-    }
-
-    private List<String> getList(String...strings) {
-        return new ArrayList<>(Arrays.asList(strings));
     }
 
     public void reload() {
@@ -90,7 +66,6 @@ public class SchematicBrushes extends JavaPlugin implements Listener {
 
     public void log(LogLevel level, String msg, @Nullable Throwable error) {
         if (!level.isValidLevel(API.getInt("Debug_Level"))) return;
-
         switch (level.name()) {
             case "DEBUG": case "INFO":
                 getLogger().log(Level.INFO, msg);
