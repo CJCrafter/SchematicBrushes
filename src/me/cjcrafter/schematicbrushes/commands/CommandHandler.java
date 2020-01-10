@@ -32,37 +32,46 @@ public class CommandHandler implements CommandExecutor {
             return true;
         }
 
-        if (args[0].equals("reload")) { // /sb reload
-            main.reload();
-            sender.sendMessage(API.color("&aSchematic Brushes reloaded"));
-        }
-        else if (args[0].equals("give")) { // /sb give PLAYER_NAME BRUSH_NAME
-            if (args.length < 3) {
-                sender.sendMessage(API.color("&cUsage: /sb give PLAYER_NAME BRUSH_NAME"));
-                return false;
+        switch (args[0]) {
+            case "reload":  // /sb reload
+                main.reload();
+                sender.sendMessage(API.color("&aSchematic Brushes reloaded"));
+                break;
+            case "give": { // /sb give PLAYER_NAME BRUSH_NAME
+                if (args.length < 3) {
+                    sender.sendMessage(API.color("&cUsage: /sb give PLAYER_NAME BRUSH_NAME"));
+                    return false;
+                }
+                Player receiver = Bukkit.getPlayer(args[1]);
+                Brush brush = API.getBrush(args[2]);
+                if (receiver == null) {
+                    sender.sendMessage(API.color("&cFailed to find player \"" + args[1] + "\"!"));
+                    return false;
+                } else if (brush == null) {
+                    sender.sendMessage(API.color("&cFailed to find brush \"" + args[2] + "\"!"));
+                    return false;
+                }
+                receiver.getInventory().addItem(brush.getItem());
+                break;
             }
-            Player receiver = Bukkit.getPlayer(args[1]);
-            Brush brush = API.getBrush(args[2]);
-            if (receiver == null) {
-                sender.sendMessage(API.color("&cFailed to find player \"" + args[1] + "\"!"));
-                return false;
-            } else if (brush == null) {
-                sender.sendMessage(API.color("&cFailed to find brush \"" + args[2] + "\"!"));
-                return false;
+            case "get": { // /sb get BRUSH_NAME
+                Brush brush = API.getBrush(args[1]);
+                if (player == null) {
+                    sender.sendMessage(API.color("&cYou must be a Player to get brushes."));
+                    return false;
+                }
+                if (brush == null) {
+                    sender.sendMessage(API.color("&cInvalid brush\"" + args[1] + "\". Use /sb list"));
+                    return false;
+                }
+
+                player.getInventory().addItem(brush.getItem());
+                break;
             }
-            receiver.getInventory().addItem(brush.getItem());
-        }
-        else if (args[0].equals("get")) { // /sb get BRUSH_NAME
-            if (player == null) {
-                sender.sendMessage(API.color("&cYou must be a Player to get brushes."));
-                return false;
-            }
-            Brush brush = API.getBrush(args[1]);
-            player.getInventory().addItem(brush.getItem());
-        }
-        else if (args[0].equals("list")) { // /sb list
-            sender.sendMessage(API.color("&aLoaded Brushes:"));
-            API.brushes.forEach((name, brush) -> sender.sendMessage(API.color("&a - " + name)));
+            case "list":  // /sb list
+                sender.sendMessage(API.color("&aLoaded Brushes:"));
+                API.brushes.forEach((name, brush) -> sender.sendMessage(API.color("&a - " + name)));
+                break;
         }
         return true;
     }
