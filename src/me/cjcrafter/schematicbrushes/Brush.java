@@ -1,9 +1,11 @@
 package me.cjcrafter.schematicbrushes;
 
 import com.sk89q.worldedit.EditSession;
+import com.sk89q.worldedit.EditSessionFactory;
 import com.sk89q.worldedit.WorldEdit;
 import com.sk89q.worldedit.WorldEditException;
 import com.sk89q.worldedit.bukkit.BukkitWorld;
+import com.sk89q.worldedit.command.argument.EditSessionHolder;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.function.operation.Operation;
 import com.sk89q.worldedit.function.operation.Operations;
