@@ -19,22 +19,23 @@ public class TabCompleter implements org.bukkit.command.TabCompleter {
         if (!(label.equalsIgnoreCase("sb") || label.equalsIgnoreCase("schematicbrushes")))
             return getList();
 
-        if (args.length == 0) return getList("help", "get", "give", "list", "reload");
+        List<String> returnValue = null;
+
+        if (args.length == 0) returnValue = getList("help", "get", "give", "list", "reload");
         else if (args[0].equals("get")) {
-            if (args.length == 2) return new ArrayList<>(API.brushes.keySet());
+            if (args.length == 2) returnValue = new ArrayList<>(API.brushes.keySet());
         }
         else if (args[0].equals("give")) {
-            if (args.length == 2) return Bukkit.getOnlinePlayers().stream().map(Player::getName).collect(Collectors.toList());
-            if (args.length == 3) return new ArrayList<>(API.brushes.keySet());
+            if (args.length == 2) returnValue = Bukkit.getOnlinePlayers().stream().map(Player::getName).collect(Collectors.toList());
+            if (args.length == 3) returnValue =  new ArrayList<>(API.brushes.keySet());
         }
-        return getList("help", "get", "give", "list", "reload");
+        else if (!getList("help", "get", "give", "list", "reload").contains(args[0])) return getList("help", "get", "give", "list", "reload");
+
+        if (returnValue == null) return null;
+        return returnValue.stream().filter(str -> str.startsWith(args[args.length - 1])).collect(Collectors.toList());
     }
 
     private static List<String> getList(String...strings) {
-        return new ArrayList<>(Arrays.asList(strings));
-    }
-
-    private static boolean in(int lower, int i, int upper) {
-        return i > lower && i < upper;
+        return new ArrayList<>(Arrays.asList(strings)); // todo redundant
     }
 }
