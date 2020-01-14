@@ -3,11 +3,13 @@ package me.cjcrafter.schematicbrushes.commands;
 import me.cjcrafter.schematicbrushes.API;
 import me.cjcrafter.schematicbrushes.Brush;
 import me.cjcrafter.schematicbrushes.SchematicBrushes;
+import me.cjcrafter.schematicbrushes.gui.Holder;
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import javax.annotation.Nonnull;
 
@@ -32,6 +34,7 @@ public class CommandHandler implements CommandExecutor {
             return true;
         }
 
+        // todo Look into better ways to separate sub-commands
         switch (args[0]) {
             case "reload":  // /sb reload
                 main.reload();
@@ -55,13 +58,20 @@ public class CommandHandler implements CommandExecutor {
                 break;
             }
             case "get": { // /sb get BRUSH_NAME
-                Brush brush = API.getBrush(args[1]);
                 if (player == null) {
                     sender.sendMessage(API.color("&cYou must be a Player to get brushes."));
                     return false;
                 }
+                if (args.length != 2) {
+                    Holder inventory = new Holder();
+                    inventory.add(API.brushes.values().stream().map(Brush::getItem).distinct().toArray(ItemStack[]::new));
+                    inventory.display(player);
+                    return true;
+                }
+                
+                Brush brush = API.getBrush(args[1]);
                 if (brush == null) {
-                    sender.sendMessage(API.color("&cInvalid brush\"" + args[1] + "\". Use /sb list"));
+                    player.sendMessage(API.color("&cInvalid brush \"" + args[1] + "\". Use /sb list"));
                     return false;
                 }
 
@@ -72,6 +82,8 @@ public class CommandHandler implements CommandExecutor {
                 sender.sendMessage(API.color("&aLoaded Brushes:"));
                 API.brushes.forEach((name, brush) -> sender.sendMessage(API.color("&a - " + name)));
                 break;
+            default:
+                API.displayHelp(sender);
         }
         return true;
     }
