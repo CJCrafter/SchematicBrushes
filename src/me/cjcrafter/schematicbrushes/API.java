@@ -4,16 +4,21 @@ import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormat;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardFormats;
 import com.sk89q.worldedit.extent.clipboard.io.ClipboardReader;
+import me.cjcrafter.schematicbrushes.util.LogLevel;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.logging.Level;
 
+@SuppressWarnings("WeakerAccess")
 public class API {
 
     public static Map<String, Brush> brushes = new HashMap<>();
@@ -66,13 +71,33 @@ public class API {
 
     static Clipboard getSchematic(String name) {
         if (!name.contains(".schem")) name += ".schem";
-        File file = new File(main.getServer().getPluginManager().getPlugin("WorldEdit").getDataFolder(), "schematics" + File.separator + name);
+        File file = new File(Objects.requireNonNull(main.getServer().getPluginManager().getPlugin("WorldEdit")).getDataFolder(), "schematics" + File.separator + name);
         ClipboardFormat format = ClipboardFormats.findByFile(file);
+        assert format != null;
         try (ClipboardReader reader = format.getReader(new FileInputStream(file))) {
             return reader.read();
         } catch (IOException ex) {
-            System.err.println("[SchematicBrushes] There was an error loading schematic \"" + name + "\" at " + file.getPath());
+            log(LogLevel.ERROR, "Error loading schematic \"" + name + "\". Did you name it correctly?", ex);
         }
         return null;
+    }
+
+    public static void log(LogLevel level, String msg) {
+        log(level, msg, null);
+    }
+
+    public static void log(LogLevel level, String msg, @Nullable Throwable error) {
+        if (!level.isValidLevel(API.getInt("Debug_Level"))) return;
+        switch (level.name()) {
+            case "DEBUG": case "INFO":
+                main.getLogger().log(Level.INFO, color("&a" + msg));
+                break;
+            case "WARN":
+                main.getLogger().log(Level.WARNING, color("&e" + msg));
+                break;
+            case "ERROR":
+                main.getLogger().log(Level.SEVERE, color("&c" + msg), error);
+                break;
+        }
     }
 }

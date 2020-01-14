@@ -93,7 +93,6 @@ Brushes:
         - DIRT
 
       Ground:
-
         # Whether or not to "lock" schematics to the ground.
         # This is helpful to paste blocks correctly on the ground if the Y cord
         # changes (Ex. Mountain/Tree/Cave)

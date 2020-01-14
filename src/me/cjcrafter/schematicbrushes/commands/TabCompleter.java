@@ -21,21 +21,20 @@ public class TabCompleter implements org.bukkit.command.TabCompleter {
 
         List<String> returnValue = null;
 
-        if (args.length == 0) returnValue = getList("help", "get", "give", "list", "reload");
-        else if (args[0].equals("get")) {
+        if (args[0].equals("get")) {
             if (args.length == 2) returnValue = new ArrayList<>(API.brushes.keySet());
         }
         else if (args[0].equals("give")) {
             if (args.length == 2) returnValue = Bukkit.getOnlinePlayers().stream().map(Player::getName).collect(Collectors.toList());
             if (args.length == 3) returnValue =  new ArrayList<>(API.brushes.keySet());
         }
-        else if (!getList("help", "get", "give", "list", "reload").contains(args[0])) return getList("help", "get", "give", "list", "reload");
+        else if (!getList("help", "get", "give", "list", "reload").contains(args[0])) returnValue = getList("help", "get", "give", "list", "reload");
 
         if (returnValue == null) return null;
         return returnValue.stream().filter(str -> str.startsWith(args[args.length - 1])).collect(Collectors.toList());
     }
 
     private static List<String> getList(String...strings) {
-        return new ArrayList<>(Arrays.asList(strings)); // todo redundant
+        return Arrays.asList(strings);
     }
 }

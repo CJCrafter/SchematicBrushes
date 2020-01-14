@@ -10,25 +10,24 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import javax.annotation.Nullable;
+import java.io.File;
 import java.util.Objects;
-import java.util.logging.Level;
 
 public class SchematicBrushes extends JavaPlugin implements Listener {
 
-    public Config config;
+    Config config;
 
     @Override
     public void onEnable() {
         config = new Config();
         new API(this);
         if (getServer().getPluginManager().getPlugin("WorldEdit") == null) {
-            log(LogLevel.ERROR, "Your WorldEdit is not found!", null);
+            API.log(LogLevel.ERROR, "WorldEdit is not installed!", null);
+            API.log(LogLevel.ERROR, "SchematicBrushes cannot function without WorldEdit!");
+            API.log(LogLevel.ERROR, "Disabling Schematic Brushes");
             getServer().getPluginManager().disablePlugin(this);
         }
-        saveDefaultConfig();
-        reloadConfig();
-        config.add(super.getConfig());
+        handleDefaults();
         config.forEach("Brushes", (key, value) -> API.brushes.put(key.split("\\.")[1], new Brush(key)), false);
 
         getServer().getPluginManager().registerEvents(this, this);
@@ -46,6 +45,22 @@ public class SchematicBrushes extends JavaPlugin implements Listener {
         getServer().getPluginManager().disablePlugin(this);
         getServer().getPluginManager().enablePlugin(this);
     }
+    
+    private void handleDefaults() {
+        saveDefaultConfig();
+        reloadConfig();
+        config.add(super.getConfig(), false);
+        setDefault("Max_Brush_Distance", 75);
+        setDefault("Scatter_Max_Checks", 1000);
+        setDefault("Build_Height", 255);
+        setDefault("Debug_Level", 1);
+        config.save(new File(getDataFolder(), "config.yml"));
+        reloadConfig();
+    }
+    
+    private void setDefault(String key, Object value) {
+        if (!config.containsKey(key)) config.set(key, value);
+    }
 
     @EventHandler
     public void onPaint(PlayerInteractEvent e) {
@@ -58,24 +73,5 @@ public class SchematicBrushes extends JavaPlugin implements Listener {
         if (brush == null) return;
 
         brush.paste(e.getPlayer(), e.getPlayer().getTargetBlock(null, (int) API.getDouble("Max_Brush_Distance")).getLocation());
-    }
-
-    public void log(LogLevel level, String msg) {
-        log(level, msg, null);
-    }
-
-    public void log(LogLevel level, String msg, @Nullable Throwable error) {
-        if (!level.isValidLevel(API.getInt("Debug_Level"))) return;
-        switch (level.name()) {
-            case "DEBUG": case "INFO":
-                getLogger().log(Level.INFO, msg);
-                break;
-            case "WARN":
-                getLogger().log(Level.WARNING, msg);
-                break;
-            case "ERROR":
-                getLogger().log(Level.SEVERE, msg, error);
-                break;
-        }
     }
 }

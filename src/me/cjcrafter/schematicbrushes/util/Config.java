@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.logging.Level;
 
-//@SuppressWarnings("ALL")
 public class Config {
 
     /**
@@ -56,18 +55,17 @@ public class Config {
      * @see org.bukkit.configuration.file.FileConfiguration
      * @param file File to read from
      */
-    public Config add(@Nonnull FileConfiguration file) {
-        API.getInstance().log(LogLevel.DEBUG, "Adding file: ", null);
-        file.getKeys(true).forEach(key -> API.getInstance().log(LogLevel.DEBUG, key + ": " + file.get(key), null));
+    public void add(@Nonnull FileConfiguration file, boolean isIgnoreDuplicates) {
+        API.log(LogLevel.DEBUG, "Adding file: ");
+        file.getKeys(true).forEach(key -> API.log(LogLevel.DEBUG, key + ": " + file.get(key)));
         file.getKeys(true)
                 .stream()
                 .filter(key -> {
-                    if (containsKey(key)) {
-                        API.getInstance().log(LogLevel.ERROR, "DUPLICATE KEY IN CONFIG: " + key, null);
+                    if (containsKey(key) && isIgnoreDuplicates) {
+                        API.log(LogLevel.ERROR, "DUPLICATE KEY IN CONFIG: " + key);
                         return false;
                     } else return true;
                 }).forEach(key -> set(key, file.get(key)));
-        return this;
     }
 
     /**
@@ -83,21 +81,6 @@ public class Config {
             strings.add(API.color(obj.toString()));
         }
         return strings;
-    }
-
-    /**
-     *
-     * @param path
-     */
-    public boolean isNull(String path) {
-        return !(
-                strings.containsKey(path) ||
-                numbers.containsKey(path) ||
-                items.containsKey(path) ||
-                lists.containsKey(path) ||
-                booleans.containsKey(path) ||
-                objects.containsKey(path)
-        );
     }
 
     /**
@@ -163,6 +146,7 @@ public class Config {
      * @param value Value
      */
     public void set(String key, Object value) {
+        API.log(LogLevel.DEBUG, "[CONFIG] " + key + ": " + value);
         if (value instanceof Number)
             numbers.put(key, ((Number) value).doubleValue());
         else if (value instanceof String)
@@ -183,7 +167,7 @@ public class Config {
      */
     public void save(@Nonnull File file) {
         FileConfiguration config = YamlConfiguration.loadConfiguration(file);
-        add(config);
+        add(config, true);
         config.getKeys(true).forEach(key -> config.set(key, null));
 
         numbers.forEach(config::set);
@@ -197,21 +181,6 @@ public class Config {
             config.save(file);
         } catch (IOException ex) {
             Bukkit.getLogger().log(Level.SEVERE, "Could not save file " + file, ex);
-        }
-    }
-
-    /**
-     *
-     * @param path
-     * @param key
-     * @param value
-     */
-    public void add(String path, String key, Object value) {
-        for (int i = 0;; i++) {
-            if (isNull(path + "." + i + "." + key)) {
-                set(path + "." +  i + "." + key, value);
-                break;
-            }
         }
     }
 
@@ -264,16 +233,13 @@ public class Config {
     private void forEach(Map<String, ?> map, String base, BiConsumer<String, Object> consumer, boolean deep) {
         int dots = countDots(base);
         map.forEach((key, value) -> {
-            API.getInstance().log(LogLevel.DEBUG, "Deep: " + deep, null);
-            API.getInstance().log(LogLevel.DEBUG, "Contains: " + key.contains(base), null);
-            API.getInstance().log(LogLevel.DEBUG, "Dots: " + dots + " ? " + countDots(key), null);
             if (deep && key.contains(base) && countDots(key) > dots) {
                 consumer.accept(key, value);
-                API.getInstance().log(LogLevel.DEBUG, "FOREACH:" + key + ": " + value, null);
+                API.log(LogLevel.DEBUG, "FOREACH:" + key + ": " + value, null);
             }
             else if (!deep && containsKey(base) && countDots(key) == dots + 1) {
                 consumer.accept(key, value);
-                API.getInstance().log(LogLevel.DEBUG, "FOREACH:" + key + ": " + value, null);
+                API.log(LogLevel.DEBUG, "FOREACH:" + key + ": " + value, null);
             }
         });
     }

@@ -4,8 +4,7 @@ public enum LogLevel {
 
     DEBUG(3),
     WARN(2),
-    ERROR(1),
-    INFO(1);
+    ERROR(1);
 
     int level;
 
