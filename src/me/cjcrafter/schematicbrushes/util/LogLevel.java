@@ -13,6 +13,7 @@ public enum LogLevel {
     }
 
     public boolean isValidLevel(int level) {
+
         return this.level <= level;
     }
 }

@@ -57,11 +57,10 @@ public class Config {
      */
     public void add(@Nonnull FileConfiguration file, boolean isIgnoreDuplicates) {
         API.log(LogLevel.DEBUG, "Adding file: ");
-        file.getKeys(true).forEach(key -> API.log(LogLevel.DEBUG, key + ": " + file.get(key)));
         file.getKeys(true)
                 .stream()
                 .filter(key -> {
-                    if (containsKey(key) && isIgnoreDuplicates) {
+                    if (containsKey(key) && !isIgnoreDuplicates) {
                         API.log(LogLevel.ERROR, "DUPLICATE KEY IN CONFIG: " + key);
                         return false;
                     } else return true;
@@ -91,7 +90,7 @@ public class Config {
     public Number getNumber(String path) {
         if (numbers.get(path) != null)
             return numbers.get(path);
-        else return 0.0;
+        else return 0;
     }
 
     /**
