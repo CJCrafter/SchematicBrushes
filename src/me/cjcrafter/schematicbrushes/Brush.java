@@ -20,6 +20,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -31,13 +32,14 @@ public class Brush {
     private static final Random rand = new Random();
 
     private String name;
-    private Map<String, Clipboard> schematics;
+    private List<Clipboard> schematics;
 
     Brush(String name) {
         this.name = name.split("\\.")[1];
-        this.schematics = new HashMap<>();
-
-        API.getList("Brushes." + this.name + ".Schematics").forEach(str -> schematics.put(str, API.getSchematic(str)));
+        this.schematics = API.getList("Brushes." + this.name + ".Schematics")
+                .stream()
+                .map(API::getSchematic)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -87,7 +89,6 @@ public class Brush {
 
             locations.add(currentLocation);
         }
-        
         locations.forEach(location -> paste(getRandomSchematic(), player, location));
     }
 
@@ -153,10 +154,8 @@ public class Brush {
                 .rotateZ(((int) z == -1) ? rand.nextInt(4) * 90 : z);
     }
 
-    @SuppressWarnings("SuspiciousMethodCalls")
     private Clipboard getRandomSchematic() {
-        Object[] schematics = this.schematics.keySet().toArray();
-        return this.schematics.get(schematics[schematics.length - 1]);
+        return schematics.get(rand.nextInt(schematics.size()));
     }
 
     /**
@@ -168,7 +167,7 @@ public class Brush {
         ItemMeta meta = item.getItemMeta();
         assert meta != null;
         meta.setDisplayName(API.color("&aSchematicBrushes~" + name));
-        meta.setLore(schematics.keySet().stream().map(str -> API.color("&2&o" + str)).collect(Collectors.toList()));
+        meta.setLore(API.getList("Brushes." + this.name + ".Schematics"));
         item.setItemMeta(meta);
         return item;
     }
@@ -179,5 +178,73 @@ public class Brush {
                 "name=" + name +
                 ",schematics=" + schematics +
                 "]";
+    }
+    
+    public static void main(String[] args) {
+        // Use for testing speed of different maps
+        final int times = 100;
+    
+        Map<String, Double> hash = new HashMap<>();
+        Map<String, Double> linked = new LinkedHashMap<>();
+        
+        long fillHashMap = 0;
+        long fillLinkedHashMap = 0;
+        
+        long iterateHashMap = 0;
+        long iterateLinkedHashMap = 0;
+        
+        long accessHashMap = 0;
+        long accessLinkedHashMap = 0;
+        
+        for (int i = 0; i < times; i++) {
+            fillHashMap += time(() -> fillMap(hash, 1_000_000));
+            fillLinkedHashMap += time(() -> fillMap(linked, 1_000_000));
+            
+            iterateHashMap += time(() -> hash.forEach((key, value) -> value++));
+            iterateLinkedHashMap += time(() -> linked.forEach((key, value) -> value++));
+            
+            accessHashMap += time(() -> {
+                for (int j = 0; j < 100_000; j++) {
+                    hash.get(j + "");
+                }
+            });
+            accessLinkedHashMap += time(() -> {
+                for (int j = 0; j < 100_000; j++) {
+                    linked.get(j + "");
+                }
+            });
+        }
+        
+        fillHashMap /= times;
+        fillLinkedHashMap /= times;
+        
+        iterateHashMap /= times;
+        iterateLinkedHashMap /= times;
+        
+        accessHashMap /= times;
+        accessLinkedHashMap /= times;
+        
+        System.out.printf("Filling HashMap      : %s %n", fillHashMap);
+        System.out.printf("Filling LinkedHashMap: %s %n %n", fillLinkedHashMap);
+        System.out.printf("Iterati HashMap      : %s %n", iterateHashMap);
+        System.out.printf("Iterati LinkedHashMap: %s %n %n", iterateLinkedHashMap);
+        System.out.printf("Accessi HashMap      : %s %n", accessHashMap);
+        System.out.printf("Accessi LinkedHashMap: %s %n", accessLinkedHashMap);
+    }
+    
+    public static void fillMap(Map<String, Double> map, int bound) {
+        for (int i = 0; i < bound; i++) {
+            map.put(i + "", Math.random());
+        }
+    }
+    
+    private static long time(Action action) {
+        long before = System.currentTimeMillis();
+        action.doSomething();
+        return System.currentTimeMillis() - before;
+    }
+    
+    private interface Action {
+        void doSomething();
     }
 }
