@@ -17,6 +17,7 @@ Schematic brushes is a plugin that allows you to configure advanced brushes to p
 To create brushes, you will need to look at the [wiki](https://github.com/CJCrafter/SchematicBrushes/wiki) and [configuration](https://github.com/CJCrafter/SchematicBrushes/wiki/Configuration).
 It is also important you know [how to create schematics](https://youtu.be/7zAGxvRz0Hk).
 
+For developers, see the [docs](https://cjcrafter.github.io/SchematicBrushes/docs/index.html)
 ## Other
 **Known Issues:**
 * Scatterbrush `//undo` only removes 1 schematic
