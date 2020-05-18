@@ -1,8 +1,6 @@
 package me.cjcrafter.schematicbrushes;
 
-import com.sk89q.worldedit.EditSession;
-import com.sk89q.worldedit.WorldEdit;
-import com.sk89q.worldedit.WorldEditException;
+import com.sk89q.worldedit.*;
 import com.sk89q.worldedit.bukkit.BukkitWorld;
 import com.sk89q.worldedit.extent.clipboard.Clipboard;
 import com.sk89q.worldedit.function.operation.Operation;
@@ -10,241 +8,272 @@ import com.sk89q.worldedit.function.operation.Operations;
 import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.math.transform.AffineTransform;
 import com.sk89q.worldedit.session.ClipboardHolder;
-import me.cjcrafter.schematicbrushes.util.LogLevel;
+import me.cjcrafter.core.file.Configuration;
+import me.cjcrafter.core.utils.*;
+import me.cjcrafter.schematicbrushes.utils.SchematicLoader;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.util.Vector;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Random;
-import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.*;
 
 public class Brush {
 
-    private static final Random rand = new Random();
+    private static EditSessionFactory factory = WorldEdit.getInstance().getEditSessionFactory();
+    public static Map<String, Brush> brushes = new HashMap<>();
+    private static Configuration config = SchematicBrushes.getConfiguration();
 
     private String name;
-    private List<Clipboard> schematics;
+    private LinkedHashMap<Clipboard, Double> schematics;  // The Double should be [0, 1] representing the chance to be selected
 
-    Brush(String name) {
-        this.name = name.split("\\.")[1];
-        this.schematics = API.getList("Brushes." + this.name + ".Schematics")
-                .stream()
-                .map(API::getSchematic)
-                .collect(Collectors.toList());
-    }
+    public Brush(String name) {
+        this.name = name;
+        this.schematics = new LinkedHashMap<>();
 
-    /**
-     * Called whenever a player who has permission clicks at a block with this brush.
-     * Determines whether the brush is a scatter or normal brush, then proceeds to
-     * find locations to paste schematic(s)
-     *
-     * TODO Separate to click and scatter methods
-     *
-     * @param player Player to save Clipboard to (For //undo)
-     * @param loc Where the player clicked
-     */
-    void paste(Player player, Location loc) {
-        if (!API.getBool("Brushes." + name + ".Scatter.Enabled")) {
+        // Add all the schematics to the map
+        for (String str : config.getSet("Brushes." + name + ".Schematics")) {
+            String[] split = str.split("~");
 
-            paste(getRandomSchematic(), player, loc);
-            return;
+            // If no chance was specified, put a 100% chance
+            if (split.length != 2) {
+                schematics.put(SchematicLoader.getSchematic(str), 1.0);
+            } else {
+                schematics.put(SchematicLoader.getSchematic(split[0]), Double.parseDouble(split[1]));
+            }
         }
 
-        int min = API.getInt("Brushes." + name + ".Scatter.Min_Schematics");
-        int max = API.getInt("Brushes." + name + ".Scatter.Max_Schematics");
-        int total = (max - min <= 0) ? max : rand.nextInt(1 + max - min) + min;
-        player.sendMessage(API.color("&aPasting " + total + " schematics."));
+        DebugUtils.log(Log.DEBUG, "Registered brush " + name);
+        brushes.put(name, this);
+    }
 
-        double range = API.getDouble("Brushes." + name + ".Scatter.Range");
-
+    public void click(Player player, Location loc) {
         List<Location> locations = new ArrayList<>();
-        int i = 0;
-        while (locations.size() < total && i++ < API.getInt("Scatter_Max_Checks")) {
-            double x = rand.nextDouble() * range + loc.getX() - range / 2;
-            double z = rand.nextDouble() * range + loc.getZ() - range / 2;
-            Location currentLocation = new Location(loc.getWorld(), x, loc.getY(), z);
+        DebugUtils.log(Log.DEBUG, "Clicked " + name);
 
-            // Any conditions checking if a Location is a "valid random location"
-            // should go here
-            if (locations.stream()
-                    .anyMatch(iterator -> iterator.distance(currentLocation) < API.getDouble("Brushes." + name + ".Scatter.Space_Between_Schematics")))
-                continue;
+        if (config.getBool("Brushes." + name + ".Branch.Enabled")) {
+            branch(loc, locations, config.getInt("Brushes." + name + ".Branch.Depth", 1));
+        } else {
+            locations.add(loc);
+        }
 
-            if (API.getBool("Brushes." + name + ".Scatter.Ground.Lock")) getGround(currentLocation);
+        try (EditSession session = factory.getEditSession(new BukkitWorld(loc.getWorld()), -1)) {
 
-            boolean isOnList = API.getList("Brushes." + name + ".Scatter.Valid_Blocks")
-                    .contains(currentLocation.getBlock().getType().name());
-            if (isOnList != API.getBool("Brushes." + name + ".Scatter.Block_Whitelist")) {
+            MessageUtils.message(player, "Pasting " + locations.size() + " schematics.");
+            for (Location found : locations) {
+                paste(session, found);
+            }
+
+            // Players remember the paste for //undo
+            LocalSession local = WorldEdit.getInstance().getSessionManager().findByName(player.getName());
+            if (local == null) {
+                DebugUtils.log(Log.WARN, "Failed to find player \"" + player.getName()
+                        + "\" on the server...Did they log off?");
+                return;
+            }
+            local.remember(session);
+        } catch (WorldEditException ex) {
+            DebugUtils.log(Log.ERROR, "WorldEditException occurred while pasting.", ex);
+        }
+    }
+
+    private void branch(Location base, List<Location> parentLocations, int depth) {
+        List<Location> locations = new ArrayList<>();
+
+        int min = config.getInt("Brushes." + name + ".Branch.Min_Schematics");
+        int max = config.getInt("Brushes." + name + ".Branch.Max_Schematics");
+        int toFind = NumberUtils.random(min, max);
+
+        double range = config.getDouble("Brushes." + name + ".Branch.Range");
+        boolean isBlacklist = !config.getBool("Brushes." + name + ".Branch.Block_Whitelist");
+        Set<String> validationSet = config.getSet("Brushes." + name + ".Branch.Valid_Blocks");
+
+        int maxChecks = config.getInt("Branch_Max_Checks");
+
+        while (locations.size() < toFind && maxChecks-- > 0) {
+            int x = (int) (NumberUtils.random(-range / 2.0, range / 2.0) + base.getX());
+            int z = (int) (NumberUtils.random(-range / 2.0, range / 2.0) + base.getZ());
+            final Location found = new Location(base.getWorld(), x, base.getY(), z);
+
+            // Make sure there is enough distance in between the other found points
+            double minDistance = config.getDouble("Brushes." + name + ".Branch.Space_Between_Schematics");
+            if (
+                    locations.stream().anyMatch(location -> location.distance(found) < minDistance) ||
+                    parentLocations.stream().anyMatch(location -> location.distance(found) < minDistance)
+            ) {
                 continue;
             }
 
-            locations.add(currentLocation);
+            // Apply ground if enabled
+            if (config.getBool("Brushes." + name + ".Branch.Ground.Lock")) {
+                Block ground = getGround(found.getWorld(), found.getBlockX(), found.getBlockY(), found.getBlockZ());
+                if (ground == null) continue;
+                found.setY(ground.getY());
+            }
+
+            // Apply blacklist/whitelist
+            if (validationSet.contains(found.getBlock().getType().name()) == isBlacklist) {
+                continue;
+            }
+
+            locations.add(found);
         }
-        locations.forEach(location -> paste(getRandomSchematic(), player, location));
+
+        parentLocations.addAll(locations);
+
+        if (--depth > 0) {
+            for (Location next : new ArrayList<>(locations)) {
+                locations.remove(next);
+
+                // Apply the distance for branching outwards
+                Vector vector = next.clone().subtract(base).toVector().setY(0);
+                vector.multiply(config.getDouble("Brushes." + name + ".Branch.Distance_Multiplier"));
+                next.add(vector);
+
+                DebugUtils.log(Log.DEBUG, "Creating branch at " + next.getBlock());
+                branch(next, parentLocations, depth);
+            }
+        }
     }
 
+
     /**
-     * Gets the highest possible ground level within <Code>bound</Code>
-     * @param loc The location for the x,z values, and to set the y
+     * Pastes a random schematic at the given <code>Location</code>
+     *
+     * The given <code>EditSession</code> is used to handle operations
+     * of multiple pastes
+     *
+     * @param session The editsession involved in pasting
+     * @param loc The location to paste at
+     * @throws WorldEditException If an error occurs while pasting
      */
-    private void getGround(Location loc) {
-        API.log(LogLevel.DEBUG, "Attempting to find ground at " + loc);
-        int bound = API.getInt("Brushes." + name + ".Scatter.Ground.Bound");
-        int lower = Math.max(loc.getBlockY() - bound, 0);
-        int upper = Math.min(loc.getBlockY() + bound, API.getInt("Build_Height"));
-        API.log(LogLevel.DEBUG, "Checking from y" + upper + " to y" + lower);
-        
-        for (int y = upper; y > lower; y--) {
-            loc.setY(y);
-            Block block = loc.getBlock();
-            if (API.getList("Brushes." + name + ".Scatter.Ground.Ignore_Blocks").contains(block.getType().name())) {
-                API.log(LogLevel.DEBUG, "y" + y + " is " + block.getType().name() + "...Blocked..." + upper + ">" + lower);
-                continue;
-            }
+    public void paste(@Nonnull EditSession session, @Nonnull Location loc) throws WorldEditException {
 
-            API.log(LogLevel.DEBUG, "&aBreaking at y= " + y + "(" + block.getType().name() + ")", null);
-            break;
-        }
-    }
+        // Setup the clipboard
+        Clipboard schematic = getRandomSchematic();
+        if (schematic == null) return;
+        ClipboardHolder holder = new ClipboardHolder(schematic);
+        holder.setTransform(getRotation());
 
-    private void paste(Clipboard schematic, Player player, Location loc) {
-        API.log(LogLevel.DEBUG, "Pasting at " + loc);
-        try (EditSession editSession = WorldEdit.getInstance().getEditSessionFactory().getEditSession(new BukkitWorld(loc.getWorld()), -1)) {
-            ClipboardHolder holder = new ClipboardHolder(schematic);
-            holder.setTransform(getRotation());
-            Operation operation = holder
-                    .createPaste(editSession)
-                    .to(BlockVector3.at(
-                            loc.getX() + API.getDouble("Brushes." + name + ".X"),
-                            loc.getY() + API.getDouble("Brushes." + name + ".Y"),
-                            loc.getZ() + API.getDouble("Brushes." + name + ".Z")))
-                    .ignoreAirBlocks(API.getBool("Brushes." + name + ".Ignore_Air"))
-                    .build();
-            Operations.complete(operation);
-            Objects.requireNonNull(WorldEdit.getInstance().getSessionManager().findByName(player.getName())).remember(editSession);
-        } catch (WorldEditException e) {
-            API.log(LogLevel.ERROR, "Schematic \"" + schematic + "\" failed to paste", e);
-        } catch (NullPointerException e) {
-            API.log(LogLevel.WARN, "Player \"" + player.getName() +
-                    "\" has left the server while painting.", e);
-        }
+        // Build the operation
+        Operation operation = holder
+                .createPaste(session)
+                .to(BlockVector3.at(
+                        loc.getX() + config.getDouble("Brushes." + name + ".X"),
+                        loc.getY() + config.getDouble("Brushes." + name + ".Y"),
+                        loc.getZ() + config.getDouble("Brushes." + name + ".Z")))
+                .ignoreAirBlocks(config.getBool("Brushes." + name + ".Ignore_Air"))
+                .copyBiomes(config.getBool("Brushes." + name + ".Copy_Biomes"))
+                .copyEntities(config.getBool("Brushes." + name + ".Copy_Entities"))
+                .build();
+
+        // Paste the operation
+        Operations.complete(operation);
     }
 
     /**
-     * Gets a rotation for this brush based on configuration
-     * Remember that -1 is a random number
-     * @return A rotation for a ClipboardHolder
+     * Gets a random schematic based on it's chance
+     * in the schematics map
+     *
+     * @return The random schematic
+     */
+    @Nullable
+    private Clipboard getRandomSchematic() {
+        int maxTries = config.getInt("Schematic_Search_Max_Tries", 20);
+        Clipboard[] keys = schematics.keySet().toArray(new Clipboard[0]);
+
+        do {
+            // Get a random key from the map
+            int random = NumberUtils.random(0, keys.length - 1);
+            Clipboard key = keys[random];
+
+            // Test the chance for the schematic to paste
+            if (NumberUtils.chance(schematics.get(key))) {
+                return key;
+            }
+        } while (--maxTries > 0);
+
+        DebugUtils.log(Log.DEBUG, "Failed to find a schematic in the given number of tries");
+        return null;
+    }
+
+    /**
+     * Gets a rotation based on this <code>Brush</code>'s
+     * configuration. If -1 is given, then the rotation is
+     * random
+     *
+     * @return The rotation
      */
     private AffineTransform getRotation() {
-        double x = API.getDouble("Brushes." + name + ".Rotate_X");
-        double y = API.getDouble("Brushes." + name + ".Rotate_Y");
-        double z = API.getDouble("Brushes." + name + ".Rotate_Z");
+        double x = config.getDouble("Brushes." + name + ".Rotate_X", 0);
+        double y = config.getDouble("Brushes." + name + ".Rotate_Y", 0);
+        double z = config.getDouble("Brushes." + name + ".Rotate_Z", 0);
         return new AffineTransform()
-                .rotateX(((int) x == -1) ? rand.nextInt(4) * 90 : x)
-                .rotateY(((int) y == -1) ? rand.nextInt(4) * 90 : y)
-                .rotateZ(((int) z == -1) ? rand.nextInt(4) * 90 : z);
-    }
-
-    private Clipboard getRandomSchematic() {
-        return schematics.get(rand.nextInt(schematics.size()));
+                .rotateX(((int) x == -1) ? NumberUtils.random(0, 4) * 90 : x)
+                .rotateY(((int) y == -1) ? NumberUtils.random(0, 4) * 90 : y)
+                .rotateZ(((int) z == -1) ? NumberUtils.random(0, 4) * 90 : z);
     }
 
     /**
-     * Returns the brush item (When using /sb give, or /sb get)
-     * @return The brush item
+     * Gets the "Item Value" of this brush, for users
+     * to paste their schematics
+     *
+     * @return This brush
      */
     public ItemStack getItem() {
-        ItemStack item = new ItemStack(Objects.requireNonNull(Material.getMaterial(API.getString("Brushes." + name + ".Material"))));
+        ItemStack item = new ItemStack(Material.valueOf(config.getString("Brushes." + name + ".Material")));
         ItemMeta meta = item.getItemMeta();
-        assert meta != null;
-        meta.setDisplayName(API.color("&aSchematicBrushes~" + name));
-        meta.setLore(API.getList("Brushes." + this.name + ".Schematics"));
+        assert meta != null;    // Although meta is never null (Outdated API), this removes warnings
+
+        // Make it look pretty
+        meta.setDisplayName(StringUtils.color("&aSchematicBrushes~" + name));
+        meta.setLore(new ArrayList<>(config.getSet("Brushes." + name + ".Schematics")));
         item.setItemMeta(meta);
+
         return item;
     }
 
-    @Override
-    public String toString() {
-        return "Brush[" +
-                "name=" + name +
-                ",schematics=" + schematics +
-                "]";
-    }
-    
-    public static void main(String[] args) {
-        // Use for testing speed of different maps
-        final int times = 100;
-    
-        Map<String, Double> hash = new HashMap<>();
-        Map<String, Double> linked = new LinkedHashMap<>();
-        
-        long fillHashMap = 0;
-        long fillLinkedHashMap = 0;
-        
-        long iterateHashMap = 0;
-        long iterateLinkedHashMap = 0;
-        
-        long accessHashMap = 0;
-        long accessLinkedHashMap = 0;
-        
-        for (int i = 0; i < times; i++) {
-            fillHashMap += time(() -> fillMap(hash, 1_000_000));
-            fillLinkedHashMap += time(() -> fillMap(linked, 1_000_000));
-            
-            iterateHashMap += time(() -> hash.forEach((key, value) -> value++));
-            iterateLinkedHashMap += time(() -> linked.forEach((key, value) -> value++));
-            
-            accessHashMap += time(() -> {
-                for (int j = 0; j < 100_000; j++) {
-                    hash.get(j + "");
-                }
-            });
-            accessLinkedHashMap += time(() -> {
-                for (int j = 0; j < 100_000; j++) {
-                    linked.get(j + "");
-                }
-            });
+    /**
+     * Finds the nearest ground at the given location (within
+     * the configured bounds)
+     *
+     * @param world The nonnull world to look in
+     * @param x The x component/location
+     * @param y The y component/location
+     * @param z The z component/location
+     * @return The found block
+     */
+    @Nullable
+    private Block getGround(@Nonnull World world, int x, int y, int z) {
+        int bound = config.getInt("Brushes." + name + ".Branch.Ground.Bound");
+        int lower = Math.max(y - bound, 0);
+        Set<String> ignored = config.getSet("Brushes." + name + ".Branch.Ground.Ignore_Blocks");
+
+        for (y = Math.min(y + bound, 255); y > lower; y--) {
+            Block block = world.getBlockAt(x, y, z);
+
+            // If the block's type is not on the blacklist,
+            // then we have found our location
+            if (!ignored.contains(block.getType().name())) {
+                return block;
+            }
         }
-        
-        fillHashMap /= times;
-        fillLinkedHashMap /= times;
-        
-        iterateHashMap /= times;
-        iterateLinkedHashMap /= times;
-        
-        accessHashMap /= times;
-        accessLinkedHashMap /= times;
-        
-        System.out.printf("Filling HashMap      : %s %n", fillHashMap);
-        System.out.printf("Filling LinkedHashMap: %s %n %n", fillLinkedHashMap);
-        System.out.printf("Iterati HashMap      : %s %n", iterateHashMap);
-        System.out.printf("Iterati LinkedHashMap: %s %n %n", iterateLinkedHashMap);
-        System.out.printf("Accessi HashMap      : %s %n", accessHashMap);
-        System.out.printf("Accessi LinkedHashMap: %s %n", accessLinkedHashMap);
+        return null;
     }
-    
-    public static void fillMap(Map<String, Double> map, int bound) {
-        for (int i = 0; i < bound; i++) {
-            map.put(i + "", Math.random());
-        }
-    }
-    
-    private static long time(Action action) {
-        long before = System.currentTimeMillis();
-        action.doSomething();
-        return System.currentTimeMillis() - before;
-    }
-    
-    private interface Action {
-        void doSomething();
+
+    /**
+     * Gets brushes by name
+     *
+     * @param name The name of the brush
+     * @return Brush with the given name (If available)
+     */
+    public static Brush forName(String name) {
+        return brushes.get(name);
     }
 }

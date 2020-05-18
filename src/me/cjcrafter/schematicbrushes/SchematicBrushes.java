@@ -1,77 +1,79 @@
 package me.cjcrafter.schematicbrushes;
 
-import me.cjcrafter.schematicbrushes.commands.CommandHandler;
-import me.cjcrafter.schematicbrushes.commands.TabCompleter;
-import me.cjcrafter.schematicbrushes.util.Config;
-import me.cjcrafter.schematicbrushes.util.LogLevel;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.meta.ItemMeta;
+import me.cjcrafter.core.file.Configuration;
+import me.cjcrafter.core.file.SeparatedConfig;
+import me.cjcrafter.core.utils.DebugUtils;
+import me.cjcrafter.core.utils.ReflectionUtils;
+import me.cjcrafter.schematicbrushes.commands.SchematicBrushesMainCommand;
+import me.cjcrafter.schematicbrushes.listeners.InteractListener;
+import org.bukkit.Bukkit;
+import org.bukkit.command.SimpleCommandMap;
+import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.io.File;
-import java.util.Objects;
+import java.lang.reflect.Method;
 
-public class SchematicBrushes extends JavaPlugin implements Listener {
+public class SchematicBrushes extends JavaPlugin {
 
-    Config config;
+    private static Configuration config;
+    private static SchematicBrushes instance;
+
+    @Override
+    public void onLoad() {
+        instance = this;
+        DebugUtils.logger = getLogger();
+
+        saveDefaultConfig();
+        reloadConfig();
+        config = new SeparatedConfig();
+        config.add(getConfig(), false);
+        DebugUtils.level = config.getInt("Debug_Level", 2);
+    }
 
     @Override
     public void onEnable() {
-        config = new Config();
-        new API(this);
-        if (getServer().getPluginManager().getPlugin("WorldEdit") == null) {
-            API.log(LogLevel.ERROR, "WorldEdit is not installed!", null);
-            API.log(LogLevel.ERROR, "SchematicBrushes cannot function without WorldEdit!");
-            API.log(LogLevel.ERROR, "Disabling Schematic Brushes");
-            getServer().getPluginManager().disablePlugin(this);
-        }
-        handleDefaults();
-        config.forEach("Brushes", (key, value) -> API.brushes.put(key.split("\\.")[1], new Brush(key)), false);
 
-        getServer().getPluginManager().registerEvents(this, this);
-        Objects.requireNonNull(getCommand("schematicbrushes")).setExecutor(new CommandHandler(this));
-        Objects.requireNonNull(getCommand("schematicbrushes")).setTabCompleter(new TabCompleter());
+        // Register brushes. Must be done in onEnable and not onLoad
+        config.forEach("Brushes", (key, value) -> new Brush(key.split("\\.")[1]), false);
+
+        Method getCommandMap = ReflectionUtils.getMethod(ReflectionUtils.getCBClass("CraftServer"), "getCommandMap");
+        SimpleCommandMap simpleCommandMap = (SimpleCommandMap) ReflectionUtils.invokeMethod(getCommandMap, Bukkit.getServer());
+
+        simpleCommandMap.register("SchematicBrushes", new SchematicBrushesMainCommand());
+
+        //getServer().getPluginManager().registerEvents(new ChunkLoadListener(), this);
+        getServer().getPluginManager().registerEvents(new InteractListener(), this);
+    }
+
+    public void onReload() {
+        HandlerList.unregisterAll(this);
+        getServer().getScheduler().cancelTasks(this);
+        Brush.brushes.clear();
+        config.clear();
+
+        saveDefaultConfig();
+        reloadConfig();
+        config.add(getConfig(), false);
+        DebugUtils.level = config.getInt("Debug_Level", 2);
+
+        config.forEach("Brushes", (key, value) -> new Brush(key.split("\\.")[1]), false);
+        getServer().getPluginManager().registerEvents(new InteractListener(), this);
     }
 
     @Override
     public void onDisable() {
-        config.clear();
-        API.brushes.clear();
+        HandlerList.unregisterAll(this);
+        getServer().getScheduler().cancelTasks(this);
+        Brush.brushes.clear();
+        config = null;
+        instance = null;
     }
 
-    public void reload() {
-        getServer().getPluginManager().disablePlugin(this);
-        getServer().getPluginManager().enablePlugin(this);
-    }
-    
-    private void handleDefaults() {
-        saveDefaultConfig();
-        reloadConfig();
-        config.add(super.getConfig(), false);
-        setDefault("Max_Brush_Distance", 75);
-        setDefault("Scatter_Max_Checks", 1000);
-        setDefault("Build_Height", 255);
-        setDefault("Debug_Level", 1);
-        config.save(new File(getDataFolder(), "config.yml"));
-        reloadConfig();
-    }
-    
-    private void setDefault(String key, Object value) {
-        if (!config.containsKey(key)) config.set(key, value);
+    public static Configuration getConfiguration() {
+        return config;
     }
 
-    @EventHandler
-    public void onPaint(PlayerInteractEvent e) {
-        if (!e.getPlayer().hasPermission("schematicbrushes.use")) return;
-
-        ItemMeta meta = e.getPlayer().getInventory().getItemInMainHand().getItemMeta();
-        if (meta == null || meta.getDisplayName().split("~").length != 2) return;
-
-        Brush brush = API.getBrush(meta.getDisplayName().split("~")[1]);
-        if (brush == null) return;
-
-        brush.paste(e.getPlayer(), e.getPlayer().getTargetBlock(null, (int) API.getDouble("Max_Brush_Distance")).getLocation());
+    public static SchematicBrushes getInstance() {
+        return instance;
     }
 }
